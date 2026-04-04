@@ -10,7 +10,10 @@ const useSocketStore = create((set, get) => ({
     const token = localStorage.getItem('token');
     if (!token || get().socket?.connected) return;
 
-    const socket = io('/', { auth: { token } });
+    const socketUrl = import.meta.env.VITE_API_URL
+      ? import.meta.env.VITE_API_URL.replace('/api', '')
+      : '/';
+    const socket = io(socketUrl, { auth: { token } });
 
     socket.on('connect', () => {
       console.log('Admin socket connected');
