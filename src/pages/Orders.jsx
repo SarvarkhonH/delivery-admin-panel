@@ -1,7 +1,8 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { MapContainer, TileLayer, Marker, Polyline } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Polyline, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import api from '../api';
+import useSocketStore from '../store/socketStore';
 
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
@@ -129,6 +130,7 @@ export default function Orders() {
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [orderTrack, setOrderTrack]       = useState([]);
   const [assigning, setAssigning] = useState(false);
+  const { courierLocations } = useSocketStore();
   const [assignCourierId, setAssignCourierId] = useState('');
   const [form, setForm]           = useState(EMPTY_FORM);
   const [formError, setFormError] = useState('');
@@ -140,6 +142,20 @@ export default function Orders() {
     api.get('/settings/pricing').then(r => setSettings(r.data.data)).catch(() => {});
     api.get('/restaurants').then(r => setRestaurants(r.data.data)).catch(() => {});
   }, [page, filters]);
+
+  // Append real-time courier location to orderTrack when order is on_way
+  useEffect(() => {
+    if (!selectedOrder || selectedOrder.status !== 'on_way') return;
+    const courierId = selectedOrder.courier_id?._id || selectedOrder.courier_id;
+    if (!courierId) return;
+    const loc = courierLocations[courierId];
+    if (!loc) return;
+    setOrderTrack(prev => {
+      const last = prev[prev.length - 1];
+      if (last && last[0] === loc.lat && last[1] === loc.lng) return prev;
+      return [...prev, [loc.lat, loc.lng]];
+    });
+  }, [courierLocations]);
 
   async function load() {
     setLoading(true);
@@ -557,27 +573,50 @@ export default function Orders() {
               ))}
             </div>
 
-            {/* Mini map */}
-            {selectedOrder.dropoff_lat && (
-              <div style={{ height: 220, borderRadius: 12, overflow: 'hidden' }}>
-                <MapContainer
-                  center={[
-                    selectedOrder.pickup_lat || selectedOrder.dropoff_lat,
-                    selectedOrder.pickup_lng || selectedOrder.dropoff_lng
-                  ]}
-                  zoom={13}
-                  style={{ height: '100%' }}
-                  zoomControl={false}
-                >
-                  <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-                  {selectedOrder.pickup_lat && (
-                    <Marker position={[selectedOrder.pickup_lat, selectedOrder.pickup_lng]} />
-                  )}
-                  <Marker position={[selectedOrder.dropoff_lat, selectedOrder.dropoff_lng]} />
-                  {orderTrack.length > 1 && <Polyline positions={orderTrack} color="#3b82f6" weight={4} />}
-                </MapContainer>
-              </div>
-            )}
+            {/* Route map — show if there are GPS coords or track points */}
+            {(selectedOrder.dropoff_lat || orderTrack.length > 0) && (() => {
+              const center = orderTrack.length > 0
+                ? orderTrack[orderTrack.length - 1]
+                : [selectedOrder.pickup_lat || selectedOrder.dropoff_lat, selectedOrder.pickup_lng || selectedOrder.dropoff_lng];
+              const isLive = selectedOrder.status === 'on_way';
+              return (
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                    <span style={{ fontWeight: 600, fontSize: 13 }}>🗺️ Marshut</span>
+                    {isLive && (
+                      <span style={{ background: '#ef4444', color: 'white', fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 99 }}>
+                        🔴 LIVE
+                      </span>
+                    )}
+                    {orderTrack.length > 0 && (
+                      <span style={{ fontSize: 12, color: '#6b7280' }}>{orderTrack.length} nuqta</span>
+                    )}
+                  </div>
+                  <div style={{ height: 300, borderRadius: 12, overflow: 'hidden' }}>
+                    <MapContainer
+                      center={center}
+                      zoom={14}
+                      style={{ height: '100%' }}
+                      zoomControl={true}
+                    >
+                      <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+                      {selectedOrder.pickup_lat && (
+                        <Marker position={[selectedOrder.pickup_lat, selectedOrder.pickup_lng]} />
+                      )}
+                      {selectedOrder.dropoff_lat && (
+                        <Marker position={[selectedOrder.dropoff_lat, selectedOrder.dropoff_lng]} />
+                      )}
+                      {orderTrack.length > 1 && (
+                        <Polyline positions={orderTrack} color="#3b82f6" weight={4} opacity={0.85} />
+                      )}
+                      {orderTrack.length > 0 && (
+                        <Marker position={orderTrack[orderTrack.length - 1]} />
+                      )}
+                    </MapContainer>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         </div>
       )}
