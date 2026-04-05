@@ -92,7 +92,7 @@ export default function MapPage() {
     courier: { ...c.courier, status: courierStatuses[c.courier._id] || c.courier.status }
   }));
 
-  const center = [41.2995, 69.2401]; // Tashkent
+  const center = [39.041546563420525, 65.58529558381123]; // Tashkent
 
   return (
     <div style={{ display: 'flex', height: '100%', flexDirection: 'column' }}>
