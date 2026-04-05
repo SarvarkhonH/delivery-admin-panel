@@ -11,6 +11,7 @@ import Finance from './pages/Finance';
 import Settings from './pages/Settings';
 import Restaurants from './pages/Restaurants';
 import useAuthStore from './store/authStore';
+import 'leaflet/dist/leaflet.css';
 import './index.css';
 
 function PrivateRoute({ children }) {
